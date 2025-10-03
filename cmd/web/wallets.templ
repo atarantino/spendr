@@ -7,55 +7,41 @@ import (
 
 templ WalletsPage(userID int, wallet *sqlc.Wallet, members []sqlc.GetWalletMembersByWalletIDRow, hasWallet bool) {
 	@Base() {
-		<div class="space-y-6">
-			<div class="flex justify-between items-center pb-4 border-b">
-				<h2 class="text-xl font-bold">Manage your wallet</h2>
-				<a href="/dashboard" class="bg-gray-200 px-3 py-1 hover:bg-gray-300">
+		<div class="uk-container uk-container-expand">
+			<div class="uk-flex uk-flex-between uk-flex-middle uk-margin-medium-bottom uk-padding-small uk-background-muted">
+				<h2 class="uk-heading-small uk-margin-remove">Manage your wallet</h2>
+				<a href="/dashboard" class="uk-button uk-button-default uk-button-small">
 					Back to Dashboard
 				</a>
 			</div>
 
 			if !hasWallet {
-				<div class="border p-4">
-					<h3 class="font-bold mb-2">Create your first wallet</h3>
-					<p class="mb-4 text-sm">
+				@Card("Create your first wallet", "uk-card-default") {
+					<p class="uk-text-small uk-margin-bottom">
 						Wallets let you share expenses with others.
 					</p>
 					<form
 						hx-post="/api/wallets"
 						hx-swap="outerHTML"
-						class="space-y-4"
+						class="uk-form-stacked"
 					>
-						<div>
-							<label for="wallet-name" class="block mb-1">
-								Wallet name
-							</label>
-							<input
-								type="text"
-								id="wallet-name"
-								name="name"
-								required
-								placeholder="e.g., Roommates, Family"
-								class="w-full border border-gray-300 p-2 max-w-md"
-							/>
+						@FormInput("wallet-name", "name", "text", "Wallet name", true, "", "")
+						<div class="uk-margin">
+							@Button("Create wallet", "submit", "primary", "", "")
 						</div>
-						<button type="submit" class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700">
-							Create wallet
-						</button>
 					</form>
-				</div>
+				}
 			} else {
-				<div class="space-y-6">
-					<div class="border p-4">
-						<h3 class="font-bold mb-1">{ wallet.Name }</h3>
-						<p class="text-sm text-gray-600 mb-4">
+				<div class="uk-margin-large">
+					@Card(wallet.Name, "uk-card-default") {
+						<p class="uk-text-small uk-text-muted uk-margin-bottom">
 							Created { wallet.CreatedAt.Time.Format("Jan 02, 2006") }
 						</p>
 
 						<div>
-							<div class="flex justify-between items-center mb-3">
-								<h4 class="font-medium">Members</h4>
-								<span class="text-sm text-gray-600">
+							<div class="uk-flex uk-flex-between uk-flex-middle uk-margin-bottom">
+								<h4 class="uk-h4 uk-margin-remove">Members</h4>
+								<span class="uk-badge">
 									{ fmt.Sprintf("%d member", len(members)) }
 									if len(members) != 1 {
 										s
@@ -64,71 +50,62 @@ templ WalletsPage(userID int, wallet *sqlc.Wallet, members []sqlc.GetWalletMembe
 							</div>
 
 							if len(members) == 0 {
-								<div class="border border-dashed p-6 text-center text-sm text-gray-600">
+								<div class="uk-alert-warning uk-text-center uk-text-small" uk-alert>
 									<p>No members yet</p>
-									<p class="text-xs mt-1">Add members to start sharing expenses</p>
+									<p class="uk-text-meta">Add members to start sharing expenses</p>
 								</div>
 							} else {
-								<div class="space-y-2">
+								<div class="uk-grid-small uk-child-width-1-1" uk-grid>
 									for _, member := range members {
-										<div class="flex justify-between items-center border p-3">
-											<div>
-												<p class="font-medium">{ member.Name }</p>
-												<p class="text-sm text-gray-600">{ member.Email }</p>
-												<p class="text-xs text-gray-500">
-													Joined { member.JoinedAt.Time.Format("Jan 02, 2006") }
-												</p>
+										<div>
+											<div class="uk-card uk-card-default uk-card-body uk-card-small">
+												<div class="uk-flex uk-flex-between uk-flex-middle">
+													<div>
+														<p class="uk-text-bold">{ member.Name }</p>
+														<p class="uk-text-small uk-text-muted">{ member.Email }</p>
+														<p class="uk-text-meta">
+															Joined { member.JoinedAt.Time.Format("Jan 02, 2006") }
+														</p>
+													</div>
+													if member.UserID != int32(userID) {
+														<button
+															hx-delete={ fmt.Sprintf("/api/wallets/%d/members/%d", wallet.ID, member.UserID) }
+															hx-confirm="Are you sure you want to remove this member?"
+															hx-swap="outerHTML"
+															hx-target="closest div"
+															class="uk-button uk-button-danger uk-button-small"
+														>
+															Remove
+														</button>
+													} else {
+														<span class="uk-badge uk-badge-primary">
+															You
+														</span>
+													}
+												</div>
 											</div>
-											if member.UserID != int32(userID) {
-												<button
-													hx-delete={ fmt.Sprintf("/api/wallets/%d/members/%d", wallet.ID, member.UserID) }
-													hx-confirm="Are you sure you want to remove this member?"
-													hx-swap="outerHTML"
-													hx-target="closest div"
-													class="bg-red-100 text-red-600 px-3 py-1 text-sm hover:bg-red-200"
-												>
-													Remove
-												</button>
-											} else {
-												<span class="bg-blue-100 text-blue-600 px-3 py-1 text-sm">
-													You
-												</span>
-											}
 										</div>
 									}
 								</div>
 							}
 						</div>
-					</div>
+					}
 
-					<div class="border p-4">
-						<h3 class="font-bold mb-2">Add member</h3>
-						<p class="text-sm mb-4">
+					@Card("Add member", "uk-card-default uk-margin-top") {
+						<p class="uk-text-small uk-margin-bottom">
 							Invite others by email address. They must have an account.
 						</p>
 						<form
 							hx-post={ fmt.Sprintf("/api/wallets/%d/members", wallet.ID) }
 							hx-swap="outerHTML"
-							class="space-y-4"
+							class="uk-form-stacked"
 						>
-							<div>
-								<label for="member-email" class="block mb-1">
-									Email address
-								</label>
-								<input
-									type="email"
-									id="member-email"
-									name="email"
-									required
-									placeholder="friend@example.com"
-									class="w-full border border-gray-300 p-2 max-w-md"
-								/>
+							@FormInput("member-email", "email", "email", "Email address", true, "", "")
+							<div class="uk-margin">
+								@Button("Add member", "submit", "primary", "", "")
 							</div>
-							<button type="submit" class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700">
-								Add member
-							</button>
 						</form>
-					</div>
+					}
 				</div>
 			}
 		</div>

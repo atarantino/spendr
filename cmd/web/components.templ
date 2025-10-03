@@ -1,0 +1,138 @@
+package web
+
+// Button component with Franken UI styling
+// variant: "primary" | "secondary" | "danger" | "default"
+// size: "small" | "large" | ""
+templ Button(text string, btnType string, variant string, size string, classes string) {
+	<button
+		type={ btnType }
+		class={
+			"uk-button",
+			templ.KV("uk-button-primary", variant == "primary"),
+			templ.KV("uk-button-secondary", variant == "secondary"),
+			templ.KV("uk-button-danger", variant == "danger"),
+			templ.KV("uk-button-default", variant == "default"),
+			templ.KV("uk-button-small", size == "small"),
+			templ.KV("uk-button-large", size == "large"),
+			classes,
+		}
+	>
+		{ text }
+	</button>
+}
+
+// FormInput component with label and Franken UI styling
+templ FormInput(id string, name string, inputType string, label string, required bool, autocomplete string, classes string) {
+	<div class={ "uk-margin", classes }>
+		<label class="uk-form-label" for={ id }>{ label }</label>
+		<div class="uk-form-controls">
+			<input
+				id={ id }
+				name={ name }
+				type={ inputType }
+				class="uk-input"
+				if required {
+					required
+				}
+				if autocomplete != "" {
+					autocomplete={ autocomplete }
+				}
+			/>
+		</div>
+	</div>
+}
+
+// Card component for content sections
+templ Card(title string, classes string) {
+	<div class={ "uk-card uk-card-default uk-card-body", classes }>
+		if title != "" {
+			<h3 class="uk-card-title">{ title }</h3>
+		}
+		{ children... }
+	</div>
+}
+
+// Alert component for messages
+// variant: "primary" | "success" | "warning" | "danger"
+templ Alert(message string, variant string, classes string) {
+	<div
+		class={
+			"uk-alert",
+			templ.KV("uk-alert-primary", variant == "primary"),
+			templ.KV("uk-alert-success", variant == "success"),
+			templ.KV("uk-alert-warning", variant == "warning"),
+			templ.KV("uk-alert-danger", variant == "danger"),
+			classes,
+		}
+		uk-alert
+	>
+		<p>{ message }</p>
+	</div>
+}
+
+// Container component for centered content
+templ Container(width string, classes string) {
+	<div
+		class={
+			"uk-container",
+			templ.KV("uk-container-xsmall", width == "xsmall"),
+			templ.KV("uk-container-small", width == "small"),
+			templ.KV("uk-container-large", width == "large"),
+			templ.KV("uk-container-xlarge", width == "xlarge"),
+			templ.KV("uk-container-expand", width == "expand"),
+			classes,
+		}
+	>
+		{ children... }
+	</div>
+}
+
+// Navbar component
+templ Navbar(brand string, brandLink string) {
+	<nav class="uk-navbar-container" uk-navbar>
+		<div class="uk-navbar-left">
+			<a class="uk-navbar-item uk-logo" href={ templ.SafeURL(brandLink) }>{ brand }</a>
+		</div>
+		<div class="uk-navbar-right">
+			{ children... }
+		</div>
+	</nav>
+}
+
+// NavItem for use within Navbar
+templ NavItem(text string, href string, active bool) {
+	<li class={ templ.KV("uk-active", active) }>
+		<a href={ templ.SafeURL(href) }>{ text }</a>
+	</li>
+}
+
+// Grid component for responsive layouts
+templ Grid(classes string) {
+	<div class={ "uk-grid-small uk-child-width-expand@s", classes } uk-grid>
+		{ children... }
+	</div>
+}
+
+// Modal component
+templ Modal(id string, title string) {
+	<div id={ id } uk-modal>
+		<div class="uk-modal-dialog uk-modal-body">
+			<button class="uk-modal-close-default" type="button" uk-close></button>
+			if title != "" {
+				<h2 class="uk-modal-title">{ title }</h2>
+			}
+			{ children... }
+		</div>
+	</div>
+}
+
+// Form component wrapper
+templ Form(action string, method string, classes string) {
+	<form
+		action={ templ.SafeURL(action) }
+		method={ method }
+		class={ "uk-form-stacked", classes }
+	>
+		{ children... }
+	</form>
+}
