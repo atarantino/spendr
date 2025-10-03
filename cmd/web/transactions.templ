@@ -1,0 +1,127 @@
+package web
+
+import (
+	"fmt"
+	"github.com/jackc/pgx/v5/pgtype"
+	sqlc "spendr/internal/database/sqlc"
+)
+
+templ TransactionsList(transactions []interface{}) {
+	<div class="space-y-4">
+		<div class="flex justify-between items-center">
+			<h2 class="font-bold">Recent transactions</h2>
+			<button
+				hx-post="/api/plaid/sync"
+				hx-trigger="click"
+				hx-target="#sync-status"
+				hx-swap="innerHTML"
+				class="bg-green-600 text-white px-4 py-2 hover:bg-green-700"
+			>
+				Sync transactions
+			</button>
+		</div>
+		<div id="sync-status" class="border border-green-500 bg-green-50 p-2 text-sm text-green-700 empty:hidden"></div>
+
+		<div class="border border-dashed p-6 text-center text-sm text-gray-600">
+			No transactions yet. Connect a bank account to get started.
+		</div>
+	</div>
+}
+
+templ UncategorizedTransactionsList(transactions []interface{}, wallets []interface{}) {
+	<div class="space-y-4">
+		<h2 class="font-bold">Uncategorized transactions</h2>
+
+		if len(transactions) == 0 {
+			<div class="border p-6 text-center text-sm text-gray-600">
+				All transactions are categorized!
+			</div>
+		} else {
+			<div class="space-y-3">
+				for _, txn := range transactions {
+					@UncategorizedTransactionCard(txn, wallets)
+				}
+			</div>
+		}
+	</div>
+}
+
+templ UncategorizedTransactionCard(transaction interface{}, wallets []interface{}) {
+	if tx, ok := transaction.(sqlc.Transaction); ok {
+		if wallet, ok := wallets[0].(sqlc.Wallet); ok {
+			<div class="border p-4">
+				<div class="flex flex-col sm:flex-row sm:justify-between gap-3">
+					<div class="flex-1">
+						<h3 class="font-medium">{ tx.Name }</h3>
+						if tx.MerchantName.Valid && tx.MerchantName.String != "" {
+							<p class="text-sm text-gray-600">{ tx.MerchantName.String }</p>
+						}
+						if tx.Date.Valid {
+							<p class="text-sm text-gray-600">
+								{ tx.Date.Time.Format("2006-01-02") }
+							</p>
+						}
+					</div>
+					<div class="flex flex-col gap-2 sm:items-end">
+						if tx.Amount.Valid {
+							<div class="font-semibold">
+								{ formatAmount(tx.Amount) }
+							</div>
+						}
+						<div class="flex gap-2">
+							<form
+								hx-post={ fmt.Sprintf("/api/transactions/%d/categorize", tx.ID) }
+								hx-swap="outerHTML"
+								hx-target="closest div.border"
+							>
+								<input type="hidden" name="wallet_id" value={ fmt.Sprintf("%d", wallet.ID) }/>
+								<input type="hidden" name="category_type" value="shared"/>
+								<button
+									type="submit"
+									class="bg-blue-600 text-white px-3 py-1 text-sm hover:bg-blue-700"
+								>
+									Shared
+								</button>
+							</form>
+							<form
+								hx-post={ fmt.Sprintf("/api/transactions/%d/categorize", tx.ID) }
+								hx-swap="outerHTML"
+								hx-target="closest div.border"
+							>
+								<input type="hidden" name="wallet_id" value={ fmt.Sprintf("%d", wallet.ID) }/>
+								<input type="hidden" name="category_type" value="individual"/>
+								<button
+									type="submit"
+									class="bg-gray-600 text-white px-3 py-1 text-sm hover:bg-gray-700"
+								>
+									Individual
+								</button>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		}
+	}
+}
+
+func formatAmount(amount pgtype.Numeric) string {
+	if !amount.Valid {
+		return "$0.00"
+	}
+	// Convert pgtype.Numeric to Float8 (float64)
+	float8Val, err := amount.Float64Value()
+	if err != nil {
+		return "$0.00"
+	}
+	return fmt.Sprintf("$%.2f", float8Val.Float64)
+}
+
+templ SharedTransactionsList(transactions []interface{}) {
+	<div class="space-y-4">
+		<h2 class="font-bold">Shared transactions</h2>
+		<div class="border p-6 text-center text-sm text-gray-600">
+			No shared transactions yet.
+		</div>
+	</div>
+}

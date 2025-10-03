@@ -1,0 +1,66 @@
+package web
+
+templ PlaidLinkButton() {
+	<div id="plaid-link-container">
+		<button
+			id="plaid-link-button"
+			class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700"
+			hx-post="/api/plaid/link/token"
+			hx-trigger="click"
+			hx-target="#plaid-link-container"
+			hx-swap="none"
+		>
+			Connect bank account
+		</button>
+	</div>
+
+	<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+	<script>
+		document.addEventListener('htmx:afterRequest', function(event) {
+			if (event.detail.pathInfo.requestPath === '/api/plaid/link/token') {
+				const response = JSON.parse(event.detail.xhr.response);
+				const linkToken = response.link_token;
+
+				const handler = Plaid.create({
+					token: linkToken,
+					onSuccess: async function(public_token, metadata) {
+						const response = await fetch('/api/plaid/link/exchange', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								public_token: public_token,
+								institution_id: metadata.institution.institution_id,
+							}),
+						});
+
+						if (response.ok) {
+							await fetch('/api/plaid/sync', {
+								method: 'POST',
+							});
+
+							window.location.reload();
+						}
+					},
+					onExit: function(err, metadata) {
+						if (err) {
+							console.error('Plaid Link error:', err);
+						}
+					},
+				});
+
+				handler.open();
+			}
+		});
+	</script>
+}
+
+templ AccountsList(accounts []interface{}) {
+	<div class="space-y-4">
+		<h2 class="font-bold">Connected accounts</h2>
+		<div class="border border-dashed p-6 text-center text-sm text-gray-600">
+			Accounts will appear here after connecting.
+		</div>
+	</div>
+}

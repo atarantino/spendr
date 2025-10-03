@@ -5,20 +5,19 @@ import (
 	"log"
 	"net/http"
 
-	"fmt"
-	"time"
+	"spendr/cmd/web"
+	"spendr/internal/auth"
+	"spendr/internal/handlers"
 
-	"github.com/a-h/templ"
-	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"spendr/cmd/web"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	r.Use(s.sessionManager.LoadAndSave)
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
@@ -28,16 +27,55 @@ func (s *Server) RegisterRoutes() http.Handler {
 		MaxAge:           300,
 	}))
 
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(s.authService, s.sessionManager)
+	healthHandler := handlers.NewHealthHandler(s.db)
+	wsHandler := handlers.NewWebSocketHandler()
+	dashboardHandler := handlers.NewDashboardHandler(s.db)
+	plaidHandler := handlers.NewPlaidHandler(s.plaidService, s.db)
+	transactionHandler := handlers.NewTransactionHandler(s.db)
+	walletsHandler := handlers.NewWalletsHandler(s.db)
+
+	// Public routes
 	r.Get("/", s.HelloWorldHandler)
+	r.Get("/health", healthHandler.Health)
+	r.Get("/websocket", wsHandler.WebSocket)
 
-	r.Get("/health", s.healthHandler)
+	// Auth routes
+	r.Get("/login", authHandler.LoginPage)
+	r.Post("/login", authHandler.Login)
+	r.Get("/register", authHandler.RegisterPage)
+	r.Post("/register", authHandler.Register)
+	r.Post("/logout", authHandler.Logout)
 
-	r.Get("/websocket", s.websocketHandler)
-
+	// Static assets
 	fileServer := http.FileServer(http.FS(web.Files))
 	r.Handle("/assets/*", fileServer)
-	r.Get("/web", templ.Handler(web.HelloForm()).ServeHTTP)
-	r.Post("/hello", web.HelloWebHandler)
+
+	// Protected routes
+	r.Group(func(r chi.Router) {
+		r.Use(auth.RequireAuth(s.sessionManager))
+		r.Get("/dashboard", dashboardHandler.Dashboard)
+		r.Get("/wallets", walletsHandler.WalletsPage)
+
+		// Plaid API routes
+		r.Post("/api/plaid/link/token", plaidHandler.CreateLinkToken)
+		r.Post("/api/plaid/link/exchange", plaidHandler.ExchangePublicToken)
+		r.Post("/api/plaid/sync", plaidHandler.SyncTransactions)
+		r.Get("/api/plaid/accounts", plaidHandler.GetAccounts)
+
+		// Transaction API routes
+		r.Get("/api/transactions", transactionHandler.GetTransactions)
+		r.Get("/api/transactions/uncategorized", transactionHandler.GetUncategorizedTransactions)
+		r.Post("/api/transactions/{id}/categorize", transactionHandler.CategorizeTransaction)
+		r.Delete("/api/transactions/{id}/categorize/{walletID}", transactionHandler.UncategorizeTransaction)
+		r.Get("/api/wallets/{walletID}/transactions/shared", transactionHandler.GetSharedTransactions)
+
+		// Wallet API routes
+		r.Post("/api/wallets", walletsHandler.CreateWallet)
+		r.Post("/api/wallets/{walletID}/members", walletsHandler.AddMember)
+		r.Delete("/api/wallets/{walletID}/members/{memberID}", walletsHandler.RemoveMember)
+	})
 
 	return r
 }
@@ -52,34 +90,4 @@ func (s *Server) HelloWorldHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = w.Write(jsonResp)
-}
-
-func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResp, _ := json.Marshal(s.db.Health())
-	_, _ = w.Write(jsonResp)
-}
-
-func (s *Server) websocketHandler(w http.ResponseWriter, r *http.Request) {
-	socket, err := websocket.Accept(w, r, nil)
-
-	if err != nil {
-		log.Printf("could not open websocket: %v", err)
-		_, _ = w.Write([]byte("could not open websocket"))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	defer socket.Close(websocket.StatusGoingAway, "server closing websocket")
-
-	ctx := r.Context()
-	socketCtx := socket.CloseRead(ctx)
-
-	for {
-		payload := fmt.Sprintf("server timestamp: %d", time.Now().UnixNano())
-		err := socket.Write(socketCtx, websocket.MessageText, []byte(payload))
-		if err != nil {
-			break
-		}
-		time.Sleep(time.Second * 2)
-	}
 }

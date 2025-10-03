@@ -1,0 +1,136 @@
+package web
+
+import (
+	"fmt"
+	sqlc "spendr/internal/database/sqlc"
+)
+
+templ WalletsPage(userID int, wallet *sqlc.Wallet, members []sqlc.GetWalletMembersByWalletIDRow, hasWallet bool) {
+	@Base() {
+		<div class="space-y-6">
+			<div class="flex justify-between items-center pb-4 border-b">
+				<h2 class="text-xl font-bold">Manage your wallet</h2>
+				<a href="/dashboard" class="bg-gray-200 px-3 py-1 hover:bg-gray-300">
+					Back to Dashboard
+				</a>
+			</div>
+
+			if !hasWallet {
+				<div class="border p-4">
+					<h3 class="font-bold mb-2">Create your first wallet</h3>
+					<p class="mb-4 text-sm">
+						Wallets let you share expenses with others.
+					</p>
+					<form
+						hx-post="/api/wallets"
+						hx-swap="outerHTML"
+						class="space-y-4"
+					>
+						<div>
+							<label for="wallet-name" class="block mb-1">
+								Wallet name
+							</label>
+							<input
+								type="text"
+								id="wallet-name"
+								name="name"
+								required
+								placeholder="e.g., Roommates, Family"
+								class="w-full border border-gray-300 p-2 max-w-md"
+							/>
+						</div>
+						<button type="submit" class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700">
+							Create wallet
+						</button>
+					</form>
+				</div>
+			} else {
+				<div class="space-y-6">
+					<div class="border p-4">
+						<h3 class="font-bold mb-1">{ wallet.Name }</h3>
+						<p class="text-sm text-gray-600 mb-4">
+							Created { wallet.CreatedAt.Time.Format("Jan 02, 2006") }
+						</p>
+
+						<div>
+							<div class="flex justify-between items-center mb-3">
+								<h4 class="font-medium">Members</h4>
+								<span class="text-sm text-gray-600">
+									{ fmt.Sprintf("%d member", len(members)) }
+									if len(members) != 1 {
+										s
+									}
+								</span>
+							</div>
+
+							if len(members) == 0 {
+								<div class="border border-dashed p-6 text-center text-sm text-gray-600">
+									<p>No members yet</p>
+									<p class="text-xs mt-1">Add members to start sharing expenses</p>
+								</div>
+							} else {
+								<div class="space-y-2">
+									for _, member := range members {
+										<div class="flex justify-between items-center border p-3">
+											<div>
+												<p class="font-medium">{ member.Name }</p>
+												<p class="text-sm text-gray-600">{ member.Email }</p>
+												<p class="text-xs text-gray-500">
+													Joined { member.JoinedAt.Time.Format("Jan 02, 2006") }
+												</p>
+											</div>
+											if member.UserID != int32(userID) {
+												<button
+													hx-delete={ fmt.Sprintf("/api/wallets/%d/members/%d", wallet.ID, member.UserID) }
+													hx-confirm="Are you sure you want to remove this member?"
+													hx-swap="outerHTML"
+													hx-target="closest div"
+													class="bg-red-100 text-red-600 px-3 py-1 text-sm hover:bg-red-200"
+												>
+													Remove
+												</button>
+											} else {
+												<span class="bg-blue-100 text-blue-600 px-3 py-1 text-sm">
+													You
+												</span>
+											}
+										</div>
+									}
+								</div>
+							}
+						</div>
+					</div>
+
+					<div class="border p-4">
+						<h3 class="font-bold mb-2">Add member</h3>
+						<p class="text-sm mb-4">
+							Invite others by email address. They must have an account.
+						</p>
+						<form
+							hx-post={ fmt.Sprintf("/api/wallets/%d/members", wallet.ID) }
+							hx-swap="outerHTML"
+							class="space-y-4"
+						>
+							<div>
+								<label for="member-email" class="block mb-1">
+									Email address
+								</label>
+								<input
+									type="email"
+									id="member-email"
+									name="email"
+									required
+									placeholder="friend@example.com"
+									class="w-full border border-gray-300 p-2 max-w-md"
+								/>
+							</div>
+							<button type="submit" class="bg-blue-600 text-white px-4 py-2 hover:bg-blue-700">
+								Add member
+							</button>
+						</form>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}

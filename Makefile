@@ -1,5 +1,12 @@
 # Simple Makefile for a Go project
 
+# Load environment variables from .env file
+include .env
+export
+
+# Database connection URL for migrations
+DB_URL := postgresql://$(BLUEPRINT_DB_USERNAME):$(BLUEPRINT_DB_PASSWORD)@$(BLUEPRINT_DB_HOST):$(BLUEPRINT_DB_PORT)/$(BLUEPRINT_DB_DATABASE)?sslmode=disable&search_path=$(BLUEPRINT_DB_SCHEMA)
+
 # Build the application
 all: build test
 templ-install:
@@ -79,4 +86,53 @@ watch:
             fi; \
         fi
 
-.PHONY: all build run test clean watch tailwind-install docker-run docker-down itest templ-install
+# Migration commands
+migrate-install:
+	@if ! command -v migrate > /dev/null; then \
+		read -p "golang-migrate is not installed. Do you want to install it? [Y/n] " choice; \
+		if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
+			go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest; \
+			if [ ! -x "$$(command -v migrate)" ]; then \
+				echo "migrate installation failed. Exiting..."; \
+				exit 1; \
+			fi; \
+		else \
+			echo "You chose not to install migrate. Exiting..."; \
+			exit 1; \
+		fi; \
+	fi
+
+migrate-create: migrate-install
+	@read -p "Enter migration name: " name; \
+	migrate create -ext sql -dir internal/database/migrations -seq $$name
+
+migrate-up: migrate-install
+	@migrate -path internal/database/migrations -database "$(DB_URL)" up
+
+migrate-down: migrate-install
+	@migrate -path internal/database/migrations -database "$(DB_URL)" down 1
+
+migrate-force: migrate-install
+	@read -p "Enter version: " version; \
+	migrate -path internal/database/migrations -database "$(DB_URL)" force $$version
+
+# sqlc commands
+sqlc-install:
+	@if ! command -v sqlc > /dev/null; then \
+		read -p "sqlc is not installed. Do you want to install it? [Y/n] " choice; \
+		if [ "$$choice" != "n" ] && [ "$$choice" != "N" ]; then \
+			go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest; \
+			if [ ! -x "$$(command -v sqlc)" ]; then \
+				echo "sqlc installation failed. Exiting..."; \
+				exit 1; \
+			fi; \
+		else \
+			echo "You chose not to install sqlc. Exiting..."; \
+			exit 1; \
+		fi; \
+	fi
+
+sqlc-generate: sqlc-install
+	@sqlc generate
+
+.PHONY: all build run test clean watch tailwind-install docker-run docker-down itest templ-install migrate-install migrate-create migrate-up migrate-down migrate-force sqlc-install sqlc-generate

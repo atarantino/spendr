@@ -1,0 +1,183 @@
+package web
+
+import (
+	"fmt"
+	sqlc "spendr/internal/database/sqlc"
+)
+
+templ TransactionRow(tx interface{}) {
+	if transaction, ok := tx.(sqlc.Transaction); ok {
+		<tr class="border-b">
+			<td class="px-2 py-2 text-sm">
+				{ transaction.Date.Time.Format("Jan 02, 2006") }
+			</td>
+			<td class="px-2 py-2">
+				<div>{ transaction.Name }</div>
+				if transaction.MerchantName.Valid {
+					<div class="text-sm text-gray-600">{ transaction.MerchantName.String }</div>
+				}
+			</td>
+			<td class="px-2 py-2 text-right">
+				if transaction.Amount.Valid && transaction.Amount.Int != nil {
+					if transaction.Amount.Int.Sign() > 0 {
+						<span class="text-red-600">
+							${ fmt.Sprintf("%.2f", float64(transaction.Amount.Int.Int64())/100.0) }
+						</span>
+					} else if transaction.Amount.Int.Sign() < 0 {
+						<span class="text-green-600">
+							-${ fmt.Sprintf("%.2f", -float64(transaction.Amount.Int.Int64())/100.0) }
+						</span>
+					} else {
+						<span>$0.00</span>
+					}
+				}
+			</td>
+		</tr>
+	}
+}
+
+templ TransactionCard(tx interface{}) {
+	if transaction, ok := tx.(sqlc.Transaction); ok {
+		<div class="border p-3 mb-2">
+			<div class="flex justify-between">
+				<div>
+					<p class="font-medium">{ transaction.Name }</p>
+					<p class="text-sm text-gray-600">
+						{ transaction.Date.Time.Format("Jan 02, 2006") }
+					</p>
+					if transaction.MerchantName.Valid {
+						<p class="text-sm text-gray-600">{ transaction.MerchantName.String }</p>
+					}
+				</div>
+				<div class="text-right">
+					if transaction.Amount.Valid && transaction.Amount.Int != nil {
+						if transaction.Amount.Int.Sign() > 0 {
+							<span class="text-red-600">
+								${ fmt.Sprintf("%.2f", float64(transaction.Amount.Int.Int64())/100.0) }
+							</span>
+						} else if transaction.Amount.Int.Sign() < 0 {
+							<span class="text-green-600">
+								-${ fmt.Sprintf("%.2f", -float64(transaction.Amount.Int.Int64())/100.0) }
+							</span>
+						} else {
+							<span>$0.00</span>
+						}
+					}
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ DashboardPage(userID int, hasConnectedAccounts bool, transactions []interface{}, currentPage int, totalPages int) {
+	@Base() {
+		<div class="space-y-6">
+			<div class="flex justify-between items-center pb-4 border-b">
+				<h2 class="text-xl font-bold">Dashboard - User #{ string(userID) }</h2>
+				<form method="post" action="/logout">
+					<button type="submit" class="bg-red-600 text-white px-3 py-1 hover:bg-red-700">Logout</button>
+				</form>
+			</div>
+
+			if !hasConnectedAccounts {
+				<div class="border p-4">
+					<h3 class="font-bold mb-2">Connect your first account</h3>
+					<p class="mb-4 text-sm">
+						Link a bank or card to start importing transactions.
+					</p>
+					@PlaidLinkButton()
+				</div>
+			} else {
+				<div class="space-y-6">
+					<div class="flex justify-between items-center">
+						<h3 class="font-bold">Connected accounts</h3>
+						@PlaidLinkButton()
+					</div>
+
+					<div class="grid gap-6 lg:grid-cols-2">
+						<div>
+							<div class="border p-4">
+								<div class="flex justify-between mb-4">
+									<h3 class="font-bold">Recent transactions</h3>
+									if totalPages > 0 {
+										<span class="text-sm text-gray-600">Page { fmt.Sprintf("%d", currentPage) } of { fmt.Sprintf("%d", totalPages) }</span>
+									}
+								</div>
+								if len(transactions) == 0 {
+									<div class="border border-dashed p-6 text-center text-sm text-gray-600">
+										<p>No transactions yet</p>
+										<p class="text-xs mt-1">Connect a bank account to see activity</p>
+									</div>
+								} else {
+									<div class="hidden sm:block">
+										<table class="w-full text-sm">
+											<thead class="border-b">
+												<tr>
+													<th class="text-left px-2 py-1">Date</th>
+													<th class="text-left px-2 py-1">Description</th>
+													<th class="text-right px-2 py-1">Amount</th>
+												</tr>
+											</thead>
+											<tbody>
+												for _, tx := range transactions {
+													@TransactionRow(tx)
+												}
+											</tbody>
+										</table>
+									</div>
+
+									<div class="sm:hidden">
+										for _, tx := range transactions {
+											@TransactionCard(tx)
+										}
+									</div>
+
+									if totalPages > 1 {
+										<div class="mt-4 flex justify-center items-center gap-2">
+											if currentPage > 1 {
+												<a href={ templ.URL(fmt.Sprintf("/dashboard?page=%d", currentPage-1)) } class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded">
+													Previous
+												</a>
+											} else {
+												<span class="px-3 py-1 bg-gray-100 text-gray-400 rounded">Previous</span>
+											}
+
+											<span class="px-3 text-sm">
+												Page { fmt.Sprintf("%d", currentPage) } of { fmt.Sprintf("%d", totalPages) }
+											</span>
+
+											if currentPage < totalPages {
+												<a href={ templ.URL(fmt.Sprintf("/dashboard?page=%d", currentPage+1)) } class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded">
+													Next
+												</a>
+											} else {
+												<span class="px-3 py-1 bg-gray-100 text-gray-400 rounded">Next</span>
+											}
+										</div>
+									}
+								}
+							</div>
+						</div>
+
+						<div>
+							<div class="border p-4">
+								<h3 class="font-bold mb-4">Quick actions</h3>
+								<div class="space-y-2">
+									<a href="/transactions/uncategorized" class="block bg-gray-100 p-2 text-center hover:bg-gray-200">
+										Categorize transactions
+									</a>
+									<a href="/wallets" class="block bg-gray-100 p-2 text-center hover:bg-gray-200">
+										Manage wallets
+									</a>
+									<a href="/accounts" class="block bg-blue-600 text-white p-2 text-center hover:bg-blue-700">
+										View connected accounts
+									</a>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
